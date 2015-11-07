@@ -12,13 +12,20 @@ class Card
   end
 end
 
+SUITS = [:clubs, :diamonds, :hearts, :spades].freeze
+CARD_SETS = {
+  war: [(2..10).to_a, :jack, :queen, :king, :ace].flatten,
+  belote: [7, 8, 9, :jack, :queen, :king, 10, :ace],
+  sixtysix: [9, :jack, :queen, :king, 10, :ace]
+}.freeze
+
 class Deck
   include Enumerable
   def initialize(deck=[])
     @deck = deck
     if deck.empty?
-      [:clubs, :diamonds, :hearts, :spades].each do |suit|
-        get_cards().each do |rank|
+      SUITS.each do |suit|
+        get_cards.each do |rank|
           @deck << Card.new(rank, suit)
         end
       end
@@ -26,9 +33,6 @@ class Deck
   end
   def each
     @deck.each { |card| yield card }
-  end
-  def get_cards
-    [(2..10).to_a, :jack, :queen, :king, :ace].flatten
   end
   def size
     @deck.size
@@ -64,6 +68,13 @@ class Deck
   # def get_hand(which)
   #   WarHand.new(which)
   # end
+  private
+  def get_cards
+    CARD_SETS[get_game_name]
+  end
+  def get_game_name
+    self.class.to_s.match(/([^\/.]*)Deck/)[1].downcase.to_sym
+  end
 end
 
 class Hand
@@ -85,9 +96,10 @@ class WarHand < Hand
 end
 
 class WarDeck < Deck
-  def get_cards
-    [(2..10).to_a, :jack, :queen, :king, :ace].flatten
-  end
+  # def get_cards
+  #   game_name = self.class.to_s.match(/([^\/.]*)Deck/)[1].downcase.to_sym
+  #   CARD_SETS[game_name]
+  # end
   def cards_in_hand
     26
   end
@@ -128,9 +140,9 @@ class BeloteHand < Hand
 end
 
 class BeloteDeck < Deck
-  def get_cards
-    [7, 8, 9, :jack, :queen, :king, 10, :ace]
-  end
+  # def get_cards
+  #   [7, 8, 9, :jack, :queen, :king, 10, :ace]
+  # end
   def cards_in_hand
     8
   end
@@ -149,9 +161,9 @@ class SixtySixHand < Hand
 end
 
 class SixtySixDeck < Deck
-  def get_cards
-    [9, :jack, :queen, :king, 10, :ace]
-  end
+  # def get_cards
+    
+  # end
   def cards_in_hand
     6
   end
