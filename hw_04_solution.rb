@@ -22,14 +22,7 @@ CARD_SETS = {
 class Deck
   include Enumerable
   def initialize(deck=[])
-    @deck = deck
-    if deck.empty?
-      SUITS.each do |suit|
-        get_cards.each do |rank|
-          @deck << Card.new(rank, suit)
-        end
-      end
-    end
+    @deck = deck.empty? ? generate_deck : deck
   end
   def each
     @deck.each { |card| yield card }
@@ -74,6 +67,13 @@ class Deck
   end
   def get_game_name
     self.class.to_s.match(/([^\/.]*)Deck/)[1].downcase.to_sym
+  end
+  def generate_deck
+    SUITS.each_with_object([]) do |suit, deck| 
+      get_cards.each do |rank| 
+        deck << Card.new(rank, suit)
+      end
+    end
   end
 end
 
@@ -171,6 +171,8 @@ class SixtySixDeck < Deck
     SixtySixHand.new(@deck.shift(cards_in_hand))
   end
 end
+
+puts WarDeck.new.size
 
 # two_of_clubs  = Card.new(2, :clubs)
 # jack_of_clubs = Card.new(:jack, :clubs)
