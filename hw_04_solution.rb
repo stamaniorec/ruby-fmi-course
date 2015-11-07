@@ -1,73 +1,93 @@
 class Card
   attr_reader :rank, :suit
-	def initialize(rank, suit)
+
+  def initialize(rank, suit)
     @rank = rank
     @suit = suit
-	end
+  end
+
   def to_s
     "#{rank.to_s.capitalize} of #{suit.to_s.capitalize}"
   end
+
   def ==(obj)
     (obj.is_a?(Card)) and (rank == obj.rank) and (suit == obj.suit)
   end
 end
 
 SUITS = [:clubs, :diamonds, :hearts, :spades].freeze
+
 CARD_SETS = {
   war: [(2..10).to_a, :jack, :queen, :king, :ace].flatten,
   belote: [7, 8, 9, :jack, :queen, :king, 10, :ace],
   sixtysix: [9, :jack, :queen, :king, 10, :ace]
 }.freeze
 
+CARDS_IN_HAND = {
+  war: 26,
+  belote: 8,
+  sixtysix: 6
+}.freeze
+
 class Deck
   include Enumerable
-  def initialize(deck=[])
+
+  def initialize(deck = [])
     @deck = deck.empty? ? generate_deck : deck
   end
+
   def each
     @deck.each { |card| yield card }
   end
+
   def size
     @deck.size
   end
+
   def draw_top_card
     @deck.shift
   end
+
   def draw_bottom_card
     @deck.pop
   end
+
   def top_card
     @deck.first
   end
+
   def bottom_card
     @deck.last
   end
+
   def shuffle
     @deck.shuffle!
     self
   end
+
   def sort
-    suits = [:clubs, :diamonds, :hearts, :spades]
-    cards = get_cards
-    @deck.sort { |x,y| suits.index(x.suit) <=> suits.index(y.suit) }.sort { |x,y| cards.index(y.rank) <=> cards.index(x.rank) }
+    sort_by_rank(sort_by_suit(@deck))
+    self
   end
+
   def to_s
     @deck.join("\n")
   end
+
   def deal
-    raise 'deal method not implemented'
-    # get_hand.new(@deck.shift(cards_in_hand))
+    eval "#{get_game_name}Hand.new(@deck.shift(cards_in_hand))"
   end
-  # def get_hand(which)
-  #   WarHand.new(which)
-  # end
+
   private
+
   def get_cards
-    CARD_SETS[get_game_name]
+    CARD_SETS[get_game_name.downcase.to_sym]
   end
+
   def get_game_name
-    self.class.to_s.match(/([^\/.]*)Deck/)[1].downcase.to_sym
+    self.class.to_s.match(/([^\/.]*)Deck/)[1]
   end
+
   def generate_deck
     SUITS.each_with_object([]) do |suit, deck| 
       get_cards.each do |rank| 
@@ -75,12 +95,25 @@ class Deck
       end
     end
   end
+
+  def sort_by_suit(deck)
+    deck.sort! { |x,y| SUITS.index(x.suit) <=> SUITS.index(y.suit) }
+  end
+
+  def sort_by_rank(deck)
+    deck.sort! { |x,y| get_cards.index(y.rank) <=> get_cards.index(x.rank) }
+  end
+
+  def cards_in_hand
+    CARDS_IN_HAND[get_game_name.downcase.to_sym]
+  end
 end
 
 class Hand
   def initialize(hand)
     @hand = hand
   end
+
   def size
     @hand.size
   end
@@ -88,7 +121,7 @@ end
 
 class WarHand < Hand
   def play_card
-    @hand.shuffle!.shift
+    @hand.delete_at(rand(@hand.length))
   end
   def allow_face_up?
     @hand.size <= 3
@@ -96,16 +129,6 @@ class WarHand < Hand
 end
 
 class WarDeck < Deck
-  # def get_cards
-  #   game_name = self.class.to_s.match(/([^\/.]*)Deck/)[1].downcase.to_sym
-  #   CARD_SETS[game_name]
-  # end
-  def cards_in_hand
-    26
-  end
-  def deal
-    WarHand.new(@deck.shift(cards_in_hand))
-  end
 end
 
 class BeloteHand < Hand
@@ -140,15 +163,6 @@ class BeloteHand < Hand
 end
 
 class BeloteDeck < Deck
-  # def get_cards
-  #   [7, 8, 9, :jack, :queen, :king, 10, :ace]
-  # end
-  def cards_in_hand
-    8
-  end
-  def deal
-    BeloteHand.new(@deck.shift(cards_in_hand))
-  end
 end
 
 class SixtySixHand < Hand
@@ -161,50 +175,4 @@ class SixtySixHand < Hand
 end
 
 class SixtySixDeck < Deck
-  # def get_cards
-    
-  # end
-  def cards_in_hand
-    6
-  end
-  def deal
-    SixtySixHand.new(@deck.shift(cards_in_hand))
-  end
 end
-
-puts WarDeck.new.size
-
-# two_of_clubs  = Card.new(2, :clubs)
-# jack_of_clubs = Card.new(:jack, :clubs)
-
-# deck = WarDeck.new([two_of_clubs, jack_of_clubs])
-
-# puts deck.sort.to_a == [jack_of_clubs, two_of_clubs]
-
-# deck  = Deck.new.shuffle
-# 47.times { deck.draw_top_card }
-# puts deck
-# puts "---"
-# deck.sort
-# puts deck
-# deck.each { |card| puts "#{card} !!!" }
-
-# deck = BeloteDeck.new
-# hand = BeloteHand.new([Card.new(:king, :spades), Card.new(:queen, :hearts), Card.new(:king, :hearts), Card.new(:ace, :diamonds)]) #deck.deal
-# hand = BeloteHand.new([Card.new(:jack, :hearts), Card.new(:jack, :spades), Card.new(:jack, :diamonds), Card.new(:jack, :clubs)])
-# puts hand.carre_of_jacks?
-
-# hand = SixtySixHand.new([Card.new(:queen, :diamonds), Card.new(:king, :hearts), Card.new(7, :spades)])
-# puts hand.forty?(:hearts)
-
-# puts Card.new(:queen, :spades) == Card.new(:queen, :spades)
-# puts Card.new(:queen, :spades) == 3
-
-# deck = Deck.new
-# puts deck
-# puts deck.draw_top_card
-# p deck.size
-# puts deck.draw_bottom_card
-# p deck.size
-# puts deck.top_card
-# puts deck.bottom_card
