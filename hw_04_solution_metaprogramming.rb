@@ -17,6 +17,18 @@ end
 
 SUITS = [:clubs, :diamonds, :hearts, :spades].freeze
 
+CARD_SETS = {
+  war: [(2..10).to_a, :jack, :queen, :king, :ace].flatten,
+  belote: [7, 8, 9, :jack, :queen, :king, 10, :ace],
+  sixtysix: [9, :jack, :queen, :king, 10, :ace]
+}.freeze
+
+CARDS_IN_HAND = {
+  war: 26,
+  belote: 8,
+  sixtysix: 6
+}.freeze
+
 class Deck
   include Enumerable
 
@@ -54,7 +66,7 @@ class Deck
   end
 
   def sort
-    sort_by_suit(sort_by_rank(@deck))
+    sort_by_rank(sort_by_suit(@deck))
     self
   end
 
@@ -62,7 +74,20 @@ class Deck
     @deck.join("\n")
   end
 
- private
+  def deal
+    eval "#{get_game_name}Hand.new(@deck.shift(cards_in_hand))"
+  end
+
+  private
+
+  def get_cards
+    CARD_SETS[get_game_name.downcase.to_sym]
+  end
+
+  def get_game_name
+    self.class.to_s.match(/([^\/.]*)Deck/)[1]
+  end
+
   def generate_deck
     SUITS.each_with_object([]) do |suit, deck|
       get_cards.each do |rank|
@@ -72,11 +97,15 @@ class Deck
   end
 
   def sort_by_suit(deck)
-    deck.sort! { |x,y| SUITS.index(y.suit) <=> SUITS.index(x.suit) }
+    deck.sort! { |x,y| SUITS.index(x.suit) <=> SUITS.index(y.suit) }
   end
 
   def sort_by_rank(deck)
     deck.sort! { |x,y| get_cards.index(y.rank) <=> get_cards.index(x.rank) }
+  end
+
+  def cards_in_hand
+    CARDS_IN_HAND[get_game_name.downcase.to_sym]
   end
 end
 
@@ -107,64 +136,35 @@ class WarHand < Hand
 end
 
 class WarDeck < Deck
-  def get_cards
-    [(2..10).to_a, :jack, :queen, :king, :ace].flatten
-  end
-  def cards_in_hand
-    26
-  end
-  def deal
-    WarHand.new(@deck.shift(cards_in_hand))
-  end
-end
-
-class BeloteDeck < Deck
-  def get_cards
-    [7, 8, 9, :jack, :queen, :king, 10, :ace]
-  end
-  def cards_in_hand
-    8
-  end
-  def deal
-    BeloteHand.new(@deck.shift(cards_in_hand))
-  end
 end
 
 class BeloteHand < Hand
   def highest_of_suit(suit)
     sort(@hand.select { |card| card.suit == suit }).last
   end
-
   def get_cards
-    BeloteDeck.new.get_cards
+    [7, 8, 9, :jack, :queen, :king, 10, :ace]
   end
-
   def belote?
     of_same_suit do |suit, cards|
       cards.include?(:queen) and cards.include?(:king)
     end
   end
-
   def tierce?
     of_same_suit { |_, cards| has_n_consecutive_cards(3, cards) }
   end
-
   def quarte?
     of_same_suit { |_, cards| has_n_consecutive_cards(4, cards) }
   end
-
   def quint?
     of_same_suit { |_, cards| has_n_consecutive_cards(5, cards) }
   end
-
   def carre_of_jacks?
     has_four(:jack)
   end
-
   def carre_of_nines?
     has_four(9)
   end
-
   def carre_of_aces?
     has_four(:ace)
   end
@@ -173,16 +173,17 @@ class BeloteHand < Hand
   def sort(cards)
     cards.sort { |x,y| get_cards.index(x) <=> get_cards.index(y) }
   end
-
   def has_n_consecutive_cards(n, cards)
     get_cards.each_cons(n).any? do |consequence|
       consequence.all? { |card| cards.include?(card) }
     end
   end
-
   def has_four(rank)
     @hand.select { |card| card.rank == rank }.length == 4
   end
+end
+
+class BeloteDeck < Deck
 end
 
 class SixtySixHand < Hand
@@ -199,13 +200,4 @@ class SixtySixHand < Hand
 end
 
 class SixtySixDeck < Deck
-  def get_cards
-    [9, :jack, :queen, :king, 10, :ace]
-  end
-  def cards_in_hand
-    6
-  end
-  def deal
-    SixtySixHand.new(@deck.shift(cards_in_hand))
-  end
 end
