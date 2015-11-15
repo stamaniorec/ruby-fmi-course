@@ -4,36 +4,37 @@ class ObjectStore
 
   def self.init
     if block_given?
-      # todo
+      # TODO
+    else
+      ObjectStore.new
     end
-    ObjectStore.new
   end
 
   def add(name, object)
-    @branch_manager.active_branch.stage << [name, object, 'add']
+    stage << [name, object, 'add']
     ResponseWithResult.new("Added #{name} to stage.", true, object)
   end
 
   def commit(message)
-    if @branch_manager.active_branch.stage.empty?
+    if stage.empty?
       Response.new("Nothing to commit, working directory clean.", false)
     else
-      num_objects_changed = @branch_manager.active_branch.stage.length
-      c = @branch_manager.active_branch.add_commit(message)
-      ResponseWithResult.new("#{message}\n\t#{num_objects_changed} objects changed", true, c)
+      num_objects_changed = stage.length
+      commit = @branch_manager.active_branch.add_commit(message)
+      ResponseWithResult.new("#{message}\n\t#{num_objects_changed} objects changed", true, commit)
     end
   end
-  
+
   def remove(name)
     object = @branch_manager.active_branch.get_object(name)
     if object
-      @branch_manager.active_branch.stage << [name, object, 'remove']
+      stage << [name, object, 'remove']
       ResponseWithResult.new("Added #{name} for removal.", true, object)
     else
       Response.new("Object #{name} is not committed.", false)
     end
   end
-  
+
   def checkout(commit_hash)
     commit = @branch_manager.active_branch.get_commit(commit_hash)
     if commit
@@ -53,7 +54,7 @@ class ObjectStore
     if commits.empty?
       Response.new("Branch #{@branch_manager.active_branch.name} does not have any commits yet.", false)
     else
-      log = commits.map do |commit| 
+      log = commits.map do |commit|
         "Commit #{commit.hash}\nDate: #{commit.date}\n\n\t#{commit.message}\n\n"
       end.join
       Response.new(log, true)
@@ -65,7 +66,7 @@ class ObjectStore
     if head
       ResponseWithResult.new(head.message, true, head)
     else
-      Response.new("Branch #{@branch_manager.active_branch.name} does not have any commits yet.", false)      
+      Response.new("Branch #{@branch_manager.active_branch.name} does not have any commits yet.", false)
     end
   end
 
@@ -84,6 +85,10 @@ class ObjectStore
     @branch_manager.create('master')
     @branch_manager.set_active_branch('master')
   end
+
+  def stage
+    @branch_manager.active_branch.stage
+  end
 end
 
 class Commit
@@ -91,20 +96,36 @@ class Commit
 
   def initialize(message, date, stage, head)
     @message = message
-    @date = date.strftime("%a %b %d %H:%M %Y %z")
-    to_be_added, to_be_removed = stage.partition { |item| item[2] == 'add' }.map { |group| group.map { |item| item.take(2) } }
-    @objects = to_be_added.dup
-    if head 
-      head.objects.each do |obj|
-        @objects << obj unless to_be_removed.include?(obj)
-      end
-    end
+    @date = format_date(date)
+    @objects = fill_objects(stage, head)
     @hash = gen_hash
   end
 
+  private
   def gen_hash
     "#{@message}"
-    # Digest::SHA1.hexdigest "#{@date}#{@message}"
+    # Digest::SHA1.hexdigest("#{@date}#{@message}")
+  end
+
+  def format_date(date)
+    date.strftime("%a %b %d %H:%M %Y %z")
+  end
+
+  def fill_objects(stage, head)
+    to_be_added, to_be_removed = partition(stage)
+    objects = to_be_added.dup
+    if head
+      head.objects.each do |obj|
+        objects << obj unless to_be_removed.include?(obj)
+      end
+    end
+    objects
+  end
+
+  def partition(stage)
+    stage.partition { |item| item[2] == 'add' }.map do |group|
+      group.map { |item| item.take(2) }
+    end
   end
 end
 
@@ -120,11 +141,9 @@ class Branch
   end
 
   def add_commit(message)
-    c = Commit.new(message, Time.now, @stage, @head)
-    @commits << c
-    @head = @commits.last
+    @commits << Commit.new(message, Time.now, @stage, @head)
     @stage = []
-    c
+    @head = @commits.last
   end
 
   def get_object(name)
@@ -133,9 +152,7 @@ class Branch
   end
 
   def commits
-    a = @commits.take_while { |commit| commit != head }
-    a.push(head) if head
-    a
+    head ? @commits.take_while { |commit| commit != head }.push(head) : []
   end
 
   def get_commit(commit_hash)
@@ -154,8 +171,8 @@ class BranchManager
     if @branches.keys.include?(branch_name)
       Response.new("Branch #{branch_name} already exists.", false)
     else
-      b = Branch.new(branch_name, @active_branch ? @active_branch.commits : [])
-      @branches[branch_name] = b
+      branch = Branch.new(branch_name, @active_branch ? @active_branch.commits : [])
+      @branches[branch_name] = branch
       Response.new("Created branch #{branch_name}.", true)
     end
   end
@@ -187,15 +204,9 @@ class BranchManager
   end
 
   def list
-    res = ""
-    @branches.sort.each do |name, branch|
-      if name == active_branch.name
-        res += "* #{name}\n"
-      else
-        res += "  #{name}\n"
-      end
-    end
-    res
+    @branches.sort.map do |name, _|
+      name == active_branch.name ? "* #{name}\n" : "  #{name}\n"
+    end.join
   end
 end
 
@@ -223,7 +234,6 @@ class ResponseWithResult < Response
     super(message, status)
     @result = result
   end
-
 end
 
 repo = ObjectStore.init
@@ -231,12 +241,27 @@ repo = ObjectStore.init
 p repo.commit('Fail commit')
 p repo.log.message
 
-p repo.add('answer', 42);
+p repo.add('answer', 42)
 p repo.commit('Add the answer')
 
 p repo.add('the_question', :unknown)
+# p repo.remove('answer')
+p repo.commit('Add the question')
+
+puts repo.branch.list
+p repo.branch.create('develop')
+p repo.branch.checkout('develop')
+p repo.branch.remove('develop')
+puts repo.branch.list
+
 p repo.remove('answer')
-p repo.commit('Add the question, remove the answer')
+p repo.commit('Removed the answer')
+p repo.get('answer')
+
+p repo.branch.checkout('master')
+p repo.get('answer')
+
+# puts repo.log.message
 
 # p repo.head
 
