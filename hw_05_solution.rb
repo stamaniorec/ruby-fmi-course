@@ -11,17 +11,18 @@ class ObjectStore
   end
 
   def add(name, object)
-    stage << [name, object, 'add']
+    @branch_manager.active_branch.stage << [name, object, 'add']
     ResponseWithResult.new("Added #{name} to stage.", true, object)
   end
 
   def commit(message)
-    if stage.empty?
+    if @branch_manager.active_branch.stage.empty?
       Response.new("Nothing to commit, working directory clean.", false)
     else
-      num_objects_changed = stage.length
+      num_changed = @branch_manager.active_branch.stage.length
+      message = "#{message}\n\t#{num_changed} objects changed"
       commit = @branch_manager.active_branch.add_commit(message)
-      ResponseWithResult.new("#{message}\n\t#{num_objects_changed} objects changed", true, commit)
+      ResponseWithResult.new(commit.message, true, commit)
     end
   end
 
@@ -52,7 +53,11 @@ class ObjectStore
   def log
     commits = @branch_manager.active_branch.commits.reverse
     if commits.empty?
-      Response.new("Branch #{@branch_manager.active_branch.name} does not have any commits yet.", false)
+      branch_name = @branch_manager.active_branch.name
+      Response.new(
+        "Branch #{branch_name} does not have any commits yet.",
+        false
+      )
     else
       log = commits.map do |commit|
         "Commit #{commit.hash}\nDate: #{commit.date}\n\n\t#{commit.message}\n\n"
@@ -66,7 +71,11 @@ class ObjectStore
     if head
       ResponseWithResult.new(head.message, true, head)
     else
-      Response.new("Branch #{@branch_manager.active_branch.name} does not have any commits yet.", false)
+      branch_name = @branch_manager.active_branch.name
+      Response.new(
+        "Branch #{branch_name} does not have any commits yet.",
+        false
+      )
     end
   end
 
@@ -87,6 +96,8 @@ class ObjectStore
   end
 
   def stage
+    p '!'
+    p @branch_manager.active_branch.stage
     @branch_manager.active_branch.stage
   end
 end
@@ -103,8 +114,8 @@ class Commit
 
   private
   def gen_hash
-    "#{@message}"
-    # Digest::SHA1.hexdigest("#{@date}#{@message}")
+    # "#{@message}"
+    Digest::SHA1.hexdigest("#{@date}#{@message}")
   end
 
   def format_date(date)
@@ -114,11 +125,7 @@ class Commit
   def fill_objects(stage, head)
     to_be_added, to_be_removed = partition(stage)
     objects = to_be_added.dup
-    if head
-      head.objects.each do |obj|
-        objects << obj unless to_be_removed.include?(obj)
-      end
-    end
+    objects += head.objects.reject { |obj| to_be_removed.include?(obj) } if head
     objects
   end
 
@@ -141,9 +148,11 @@ class Branch
   end
 
   def add_commit(message)
-    @commits << Commit.new(message, Time.now, @stage, @head)
+    c = Commit.new(message, Time.now, @stage, @head)
+    @commits << c
     @stage = []
     @head = @commits.last
+    c
   end
 
   def get_object(name)
@@ -171,7 +180,8 @@ class BranchManager
     if @branches.keys.include?(branch_name)
       Response.new("Branch #{branch_name} already exists.", false)
     else
-      branch = Branch.new(branch_name, @active_branch ? @active_branch.commits : [])
+      commits_in_current_branch = @active_branch ? @active_branch.commits : []
+      branch = Branch.new(branch_name, commits_in_current_branch)
       @branches[branch_name] = branch
       Response.new("Created branch #{branch_name}.", true)
     end
@@ -242,7 +252,9 @@ p repo.commit('Fail commit')
 p repo.log.message
 
 p repo.add('answer', 42)
-p repo.commit('Add the answer')
+p repo.commit('Add the answer').result
+
+# exit 1
 
 p repo.add('the_question', :unknown)
 # p repo.remove('answer')
