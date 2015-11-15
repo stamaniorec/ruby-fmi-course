@@ -19,8 +19,8 @@ class ObjectStore
       Response.new("Nothing to commit, working directory clean.", false)
     else
       num_objects_changed = @branch_manager.active_branch.stage.length
-      @branch_manager.active_branch.add_commit(message)
-      Response.new("#{message}\n\t#{num_objects_changed} objects changed", true)
+      c = @branch_manager.active_branch.add_commit(message)
+      ResponseWithResult.new("#{message}\n\t#{num_objects_changed} objects changed", true, c)
     end
   end
   
@@ -120,9 +120,11 @@ class Branch
   end
 
   def add_commit(message)
-    @commits << Commit.new(message, Time.now, @stage, @head)
+    c = Commit.new(message, Time.now, @stage, @head)
+    @commits << c
     @head = @commits.last
     @stage = []
+    c
   end
 
   def get_object(name)
