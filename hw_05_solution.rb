@@ -2,27 +2,26 @@ require 'digest/sha1'
 
 class ObjectStore
 
-  def self.init
+  def self.init(&block)
     if block_given?
-      # TODO
+      ObjectStore.new.instance_eval(&block)
     else
       ObjectStore.new
     end
   end
 
   def add(name, object)
-    @branch_manager.active_branch.stage << [name, object, 'add']
+    stage << [name, object, 'add']
     ResponseWithResult.new("Added #{name} to stage.", true, object)
   end
 
   def commit(message)
-    if @branch_manager.active_branch.stage.empty?
+    if stage.empty?
       Response.new("Nothing to commit, working directory clean.", false)
     else
-      num_changed = @branch_manager.active_branch.stage.length
-      message = "#{message}\n\t#{num_changed} objects changed"
+      response_message = "#{message}\n\t#{stage.length} objects changed"
       commit = @branch_manager.active_branch.add_commit(message)
-      ResponseWithResult.new(commit.message, true, commit)
+      ResponseWithResult.new(response_message, true, commit)
     end
   end
 
@@ -96,8 +95,6 @@ class ObjectStore
   end
 
   def stage
-    p '!'
-    p @branch_manager.active_branch.stage
     @branch_manager.active_branch.stage
   end
 end
@@ -246,32 +243,45 @@ class ResponseWithResult < Response
   end
 end
 
-repo = ObjectStore.init
+# repo = ObjectStore.init do
+#   p add("value", 21)
+#   p commit("message")
+#   puts log.message
+# end
 
-p repo.commit('Fail commit')
-p repo.log.message
+repo = ObjectStore.init do
+  add('foo1', :bar1)
+  commit('First commit')
+  add('foo2', :bar2)
+  remove('foo1')
+  commit('Second commit')
+  puts log.message
+end
 
-p repo.add('answer', 42)
-p repo.commit('Add the answer').result
+# p repo.commit('Fail commit')
+# p repo.log.message
 
-# exit 1
+# p repo.add('answer', 42)
+# p repo.commit('Add the answer')
 
-p repo.add('the_question', :unknown)
+# p repo.add('the_question', :unknown)
+# # p repo.remove('answer')
+# p repo.commit('Add the question')
+
+# puts repo.branch.list
+# p repo.branch.create('develop')
+# p repo.branch.checkout('develop')
+# p repo.branch.remove('develop')
+# puts repo.branch.list
+
 # p repo.remove('answer')
-p repo.commit('Add the question')
+# p repo.commit('Removed the answer')
+# p repo.get('answer')
 
-puts repo.branch.list
-p repo.branch.create('develop')
-p repo.branch.checkout('develop')
-p repo.branch.remove('develop')
-puts repo.branch.list
+# p repo.branch.checkout('master')
+# p repo.get('answer')
 
-p repo.remove('answer')
-p repo.commit('Removed the answer')
-p repo.get('answer')
-
-p repo.branch.checkout('master')
-p repo.get('answer')
+# ---
 
 # puts repo.log.message
 
