@@ -3,11 +3,9 @@ require 'digest/sha1'
 class ObjectStore
 
   def self.init(&block)
-    if block_given?
-      ObjectStore.new.instance_eval(&block)
-    else
-      ObjectStore.new
-    end
+    object_store = ObjectStore.new
+    object_store.instance_eval(&block) if block_given?
+    object_store
   end
 
   def add(name, object)
@@ -58,10 +56,7 @@ class ObjectStore
         false
       )
     else
-      log = commits.map do |commit|
-        "Commit #{commit.hash}\nDate: #{commit.date}\n\n\t#{commit.message}\n\n"
-      end.join
-      Response.new(log, true)
+      Response.new(build_log(commits), true)
     end
   end
 
@@ -97,6 +92,13 @@ class ObjectStore
   def stage
     @branch_manager.active_branch.stage
   end
+
+  def build_log(commits)
+    commits.map do |commit|
+      "Commit #{commit.hash}\nDate: #{commit.formatted_date}" \
+      "\n\n\t#{commit.message}\n\n"
+    end.join.chomp.chomp
+  end
 end
 
 class Commit
@@ -104,26 +106,28 @@ class Commit
 
   def initialize(message, date, stage, head)
     @message = message
-    @date = format_date(date)
+    @date = date
     @objects = fill_objects(stage, head)
     @hash = gen_hash
   end
 
-  private
-  def gen_hash
-    # "#{@message}"
-    Digest::SHA1.hexdigest("#{@date}#{@message}")
+  def formatted_date
+    date.strftime("%a %b %d %H:%M %Y %z")
   end
 
-  def format_date(date)
-    date.strftime("%a %b %d %H:%M %Y %z")
+  private
+  def gen_hash
+    Digest::SHA1.hexdigest("#{@date}#{@message}")
   end
 
   def fill_objects(stage, head)
     to_be_added, to_be_removed = partition(stage)
     objects = to_be_added.dup
-    objects += head.objects.reject { |obj| to_be_removed.include?(obj) } if head
-    objects
+    objects += non_removed_objects(head, to_be_removed)
+  end
+
+  def non_removed_objects(head, to_be_removed)
+    head ? head.objects.reject { |obj| to_be_removed.include?(obj) } : []
   end
 
   def partition(stage)
@@ -145,16 +149,17 @@ class Branch
   end
 
   def add_commit(message)
-    c = Commit.new(message, Time.now, @stage, @head)
-    @commits << c
+    commit = Commit.new(message, Time.now, @stage, @head)
+    @commits << commit
     @stage = []
     @head = @commits.last
-    c
   end
 
   def get_object(name)
-    entry = head.objects.select { |object| object[0] == name }.first
-    entry ? entry[1] : nil
+    if head
+      entry = head.objects.select { |object| object[0] == name }.first
+      entry ? entry[1] : nil
+    end
   end
 
   def commits
@@ -191,7 +196,7 @@ class BranchManager
   def checkout(branch_name)
     if @branches.keys.include?(branch_name)
       set_active_branch(branch_name)
-      Response.new("Switched to branch #{branch_name}", true)
+      Response.new("Switched to branch #{branch_name}.", true)
     else
       Response.new("Branch #{branch_name} does not exist.", false)
     end
@@ -211,9 +216,10 @@ class BranchManager
   end
 
   def list
-    @branches.sort.map do |name, _|
+    list = @branches.sort.map do |name, _|
       name == active_branch.name ? "* #{name}\n" : "  #{name}\n"
-    end.join
+    end.join.chomp
+    Response.new(list, true)
   end
 end
 
@@ -242,54 +248,3 @@ class ResponseWithResult < Response
     @result = result
   end
 end
-
-# repo = ObjectStore.init do
-#   p add("value", 21)
-#   p commit("message")
-#   puts log.message
-# end
-
-repo = ObjectStore.init do
-  add('foo1', :bar1)
-  commit('First commit')
-  add('foo2', :bar2)
-  remove('foo1')
-  commit('Second commit')
-  puts log.message
-end
-
-# p repo.commit('Fail commit')
-# p repo.log.message
-
-# p repo.add('answer', 42)
-# p repo.commit('Add the answer')
-
-# p repo.add('the_question', :unknown)
-# # p repo.remove('answer')
-# p repo.commit('Add the question')
-
-# puts repo.branch.list
-# p repo.branch.create('develop')
-# p repo.branch.checkout('develop')
-# p repo.branch.remove('develop')
-# puts repo.branch.list
-
-# p repo.remove('answer')
-# p repo.commit('Removed the answer')
-# p repo.get('answer')
-
-# p repo.branch.checkout('master')
-# p repo.get('answer')
-
-# ---
-
-# puts repo.log.message
-
-# p repo.head
-
-# p repo.checkout('Add the answer')
-# p repo.get('answer')
-# puts repo.log.message
-
-# p repo.checkout('Add the question, remove the answer')
-# p repo.head
