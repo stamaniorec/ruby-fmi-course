@@ -99,21 +99,19 @@ module TurtleGraphics
 <body>
   <table>
 }
-    total = canvas.map { |row| row.max }.max.to_f
-    canvas.each do |row|
-      html += "<tr>\n"
-      row.each do |col|
-        intensity = (col.to_f / total)
-        html += "\t<td style=\"opacity: #{intensity.round(2)}\"></td>"
-      end
-      html += "</tr>\n"
-    end
-    html += %{
+        max_steps = canvas.map { |row| row.max }.max.to_f
+        canvas.each do |row|
+          html += "<tr>\n"
+          row.each do |col|
+            html += "<td style=\"opacity: #{(col.to_f / max_steps).round(2)}\"></td>"
+          end
+          html += "</tr>\n"
+        end
+        html += %{
   </table>
 </body>
 </html>
 }
-    html
       end
     end
   end
